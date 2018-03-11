@@ -148,6 +148,12 @@ int main(int argc, char *argv[])
 			f << fileBuffer.c_str();
 			f.close();
 		}
+		else if(packetType == "ERROR")
+		{
+			cout << receivedPacket.get_payload() << endl;
+			close(sockfd);
+			exit(1);
+		}
 
 		cout << "Responding with " << responsePacket.to_string() << endl;	
 		if ((numbytes = sendto(sockfd, responsePacket.to_string().c_str() , responsePacket.to_string().length(), 0, p->ai_addr, p->ai_addrlen)) == -1) 

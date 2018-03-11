@@ -16,6 +16,7 @@
 #include "packet.h"
 #include <iostream>
 #include <fstream>
+#include <ctime>
 using namespace std;
 
 #define PAYLOAD_SIZE 256
@@ -30,6 +31,15 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+void send_packet(rdt_packet pack, int sockfd, sockaddr_storage their_addr, socklen_t addr_len)
+{
+	if(int numbytes = sendto(sockfd, pack.to_string().c_str(), pack.to_string().length(), 0, ((struct sockaddr*)&their_addr), addr_len) == -1)
+	{
+		perror("listener: sendto");
+		exit(1);
+	}	
+}
+
 int main(int argc, char **argv)
 {
 	int sockfd;
@@ -40,7 +50,7 @@ int main(int argc, char **argv)
 	char *buf;
 	socklen_t addr_len;
 	char s[INET6_ADDRSTRLEN];
-	string last_packet_type = "";
+	string packetType = "";
 	char *fileReadBuffer;
 	int fileIndex = 0;
 	ifstream f;
@@ -89,7 +99,7 @@ int main(int argc, char **argv)
 
 	cout << "listener: listening on port " <<  MYPORT << endl;
 
-	while(last_packet_type != "CLOSE_CONNECTION")
+	while(packetType != "END_CONN")
 	{
 	buf = new char[300];
 	memset(buf, '\0', 300);
@@ -107,11 +117,12 @@ int main(int argc, char **argv)
 	sequence_number++;
 	rdt_packet responsePacket = rdt_packet(to_string(sequence_number), "", "");
 
-	string packetType = receivedPacket.get_packet_type();
+	packetType = receivedPacket.get_packet_type();
 	//If we receive a connection request, response with a connection accept
 	if(packetType == "CONN_REQUEST")
 	{
 		responsePacket.set_packet_type("CONN_ACCEPT");
+		send_packet(responsePacket, sockfd, their_addr, addr_len);
 	}
 	else if(packetType == "FILE_REQUEST")
 	{
@@ -127,7 +138,9 @@ int main(int argc, char **argv)
 		{
 			responsePacket.set_packet_type("ERROR");
 			responsePacket.set_payload("File not found");
+			packetType = "END_CONN";	
 		}
+		send_packet(responsePacket, sockfd, their_addr, addr_len);
 	}
 	else if(packetType == "ACK")
 	{
@@ -149,6 +162,7 @@ int main(int argc, char **argv)
 		fileIndex += PAYLOAD_SIZE;
 
 		delete [] fileReadBuffer;
+		send_packet(responsePacket, sockfd, their_addr, addr_len);
 	}
 	else if(packetType == "END_CONN")
 	{
@@ -158,11 +172,7 @@ int main(int argc, char **argv)
 
 	string responseString = responsePacket.to_string();
 	cout << "Responding with" << responseString << endl;
-	if(numbytes = sendto(sockfd, responseString.c_str(), responseString.length(), 0, ((struct sockaddr*)&their_addr), addr_len) == -1)
-	{
-		perror("talker: sendto");
-		exit(1);
-	}	
+
 	delete [] buf;
 	}
 
